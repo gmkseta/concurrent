@@ -1,9 +1,3 @@
-/***********************************************************************
-* Code listing from "Advanced Linux Programming," by CodeSourcery LLC  *
-* Copyright (C) 2001 by New Riders Publishing                          *
-* See COPYRIGHT for license information.                               *
-***********************************************************************/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -35,19 +29,29 @@ int spawn (char* program, char** arg_list)
 
 int main ()
 {
+  //++
+  int child_status;
   /* The argument list to pass to the "ls" command.  */
   char* arg_list[] = {
     "ls",     /* argv[0], the name of the program.  */
-    "-l", 
+    "-l",
     "/",
     NULL      /* The argument list must end with a NULL.  */
   };
 
   /* Spawn a child process running the "ls" command.  Ignore the
      returned child process id.  */
-  spawn ("ls", arg_list); 
+  spawn ("ls", arg_list);
 
-  printf ("done with main program\n");
+  //++
+  wait(&child_status);
+
+  if(WIFEXITED(child_status))
+    printf("the child process exited normally,with exit code %d\n",WEXITSTATUS(child_status));
+  else
+    printf("the child process exited abnormally");
+
+  // printf ("done with main program\n");
 
   return 0;
 }
