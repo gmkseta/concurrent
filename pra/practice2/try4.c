@@ -36,11 +36,12 @@ int main() {
     
     printf("Input some text. Enter 'end' to finish\n");
     
-    while(strncmp("end", work_area, 3) != 0)
+    while( strncmp("end", work_area, 3) != 0 )
     {
         fgets(work_area, WORK_SIZE, stdin);
         sem_post(&bin_sem);
     }
+    
     printf("\nWaiting for thread to finish...\n");
     
     res = pthread_join(a_thread, &thread_result);
@@ -52,11 +53,23 @@ int main() {
     }
     
     printf("Thread joined\n");
+    
     sem_destroy(&bin_sem);
+    
     exit(EXIT_SUCCESS);
 }
-void *thread_function(void *arg) { sem_wait(&bin_sem); while(strncmp("end", work_area, 3) != 0) {
-    printf("You input %d characters\n", strlen(work_area) -1);
-    sem_wait(&bin_sem); }
-    pthread_exit(NULL); }
+void *thread_function(void *arg) {
+    
+    sem_wait(&bin_sem);
+    
+    while(strncmp("end", work_area, 3) != 0)
+    {
+        printf("You input %d characters\n", strlen(work_area) -1);
+        sem_wait(&bin_sem);
+    }
+    
+    pthread_exit(NULL);
+}
+
+
 
