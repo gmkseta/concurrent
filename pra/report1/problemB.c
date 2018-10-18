@@ -6,7 +6,8 @@
 // This function will handle a signal.
 void HandleSignal(int sig, siginfo_t *si, void *context);
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
   struct sigaction sVal;
   pid_t myPID;
   pid_t myG_PID;

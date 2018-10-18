@@ -1,9 +1,7 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <semaphore.h>
-
 sem_t s; /* semaphore s */
-
 void *foo(void *vargp)
 {
     int id;
@@ -11,9 +9,7 @@ void *foo(void *vargp)
     id = *((int *)vargp);
     printf("Thread %d\n", id);
     sem_post(&s);
-    
 }
-
 int main()
 {
     pthread_t tid[2];

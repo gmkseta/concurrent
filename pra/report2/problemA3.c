@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
-
-
 void *thread(void *vargp)
 {
     int *ptr = (int*)vargp;
@@ -10,7 +8,6 @@ void *thread(void *vargp)
 }
 void *thread2(void *vargp)
 {
-    
     int *ptr = (int*)vargp;
     *ptr = 0;
     pthread_exit((void*)31);
@@ -24,4 +21,3 @@ int main() {
     pthread_join(tid2, NULL);
     printf("%d\n",i);
 }
-

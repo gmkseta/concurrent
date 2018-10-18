@@ -1,6 +1,4 @@
-/*
-Signal Example with wait() and waitpid() SIGUSR1, SIGUSR2, and SIGINT
-*/
+/*Signal Example with wait() and waitpid() SIGUSR1, SIGUSR2, and SIGINT*/
 #include <signal.h>
 #include <stdio.h>
 #include <sys/wait.h>
@@ -8,28 +6,29 @@ Signal Example with wait() and waitpid() SIGUSR1, SIGUSR2, and SIGINT
 
 static void signal_handler(int);
 
-int i, pid1, pid2, status;
+int i, pid1, pid2, status;//전역변수선언
 
 int main( int argc, char *argv[], char *env[] )
 {
   int exit_status;
-
+  //SIGUSR1 에대한 핸들러 설정 , 만약 에러시 출력
   if( signal( SIGUSR1, signal_handler) == SIG_ERR )
-  {//SIGUSR1 에대한 핸들러 설정
     printf("P?ent: Unable to create handler for SIGUSR1\n");
-  }
 
+  //SIGUSR2 에대한 핸들러 설정 만약 에러시 출력
   if( signal( SIGUSR2, signal_handler) == SIG_ERR )
-  {//SIGUSR2 에대한 핸들러 설정
     printf("P?ent: Unable to create handler for SIGUSR2\n");
-  }
 
+  //부모의 pid를 pid1에 넣고 출력
   printf( "Parent pid = %d\n", pid1=getpid());
 
+  //fork를 하고 pid2 자식의 pid를 넣는다, 자식의 pid2는 0이다
   if( (pid2 = fork()) == 0 )
-  {
+  { //자식 프로세스의 경우 이 조건문에 들어가게 된다.
+    //자신의 pid를 출력
     printf( "Child pid = %d\n", getpid() );
     printf( "Child: sending parent SIGUSR1\n", getpid() );
+    //pid1(부모에게) 에게 SIGUSR1을 보낸다
     kill( pid1, SIGUSR1 );
     for( ;; );
     /* loop forever */
@@ -58,7 +57,7 @@ int main( int argc, char *argv[], char *env[] )
     * number). This can be done through a return or exit()
     */
     if( WIFEXITED( status ) )
-    {
+    {//자식이 정상적으로 종료 되었다면 Non-zero를 반환
       /*
       * Now we know the process exited properly so we can get the
       * return value
@@ -69,7 +68,7 @@ int main( int argc, char *argv[], char *env[] )
       */
 
       exit_status = WEXITSTATUS( status );
-
+      //정상 종료 되었을 때의 반환을 넣어준다.
       /*
       * Since we expect negative numbers...
       *
@@ -110,38 +109,46 @@ int main( int argc, char *argv[], char *env[] )
 static void signal_handler(int signo)
 {
   /* signo contains the signal number that was received */
+  //매개변수 signo에 시그널 넘버가 담겨서 온다.
   switch( signo )
   {
     /* Signal is a SIGUSR1 */
     case SIGUSR1:
+      //SIGUSR1의 시그널을 받은 프로세스의 pid를 출력한다.
       printf( "Process %d: received SIGUSR1 \n", getpid() );
+
       if(pid1==getpid()) /* it is the parent */
-      {
+      {//부모일 때 이 조건문에 들어오게 된다.
         printf( "Process %d is passing SIGUSR1 to %d...\n", getpid(),pid2 );
+        //pid2에게 SIGUSR1을 보낸다.
         kill( pid2, SIGUSR1 );
       }
       else /* it is the child */
-      {
+      {//자식일 때 이 조건문에 들어오게 된다.
         printf( "Process %d is passing SIGUSR2 to itself...\n", getpid());
+        //자신에게 SIGUSR2를 보낸다.
         kill(getpid(), SIGUSR2);
       }
       break;
+
       /* It's a SIGUSR2 */
     case SIGUSR2:
       printf( "Process %d: received SIGUSR2 \n", getpid() );
       if(pid1==getpid())
-      {
+      {//부모일 때 이 조건문에 들어오게 된다
         printf( "Process %d is passing SIGUSR2 to %d...\n", getpid(),pid2 );
         kill( pid2, SIGUSR2 );
+        //자식에게 SIGUSR2를 보낸다
       }
       else /* it is the child */
-      {
+      {//자식일 때 이 조건문에 들어오게 된다
+        exit(1);
         printf( "Process %d will terminate itself using SIGINT\n", getpid());
         kill(getpid(), SIGINT);
+        //자신에게 SIGINT를 보내게 된다.
       }
       break;
-    default:
-      break;
+    default: break;
     }
   return;
 }

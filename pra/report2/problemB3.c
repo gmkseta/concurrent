@@ -1,7 +1,5 @@
-
 #include <pthread.h>
 #include <stdio.h>
-
 void *foo(void *vargp) {
     int id;
     id = (int)vargp;

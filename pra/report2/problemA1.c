@@ -4,8 +4,6 @@
 void *thread(void *vargp) {
     pthread_exit((void*)42);
 }
-
-
 int main() {
     int i;
     pthread_t tid;
@@ -13,5 +11,3 @@ int main() {
     pthread_join(tid, (void **)&i);
     printf("%d\n",i);
 }
-
-
