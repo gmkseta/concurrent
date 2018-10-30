@@ -37,5 +37,5 @@ int main() {
     else
       printf("Child terminated abnormally\n");
     }
-  exit(exit_code);
+    exit(exit_code);
 }
