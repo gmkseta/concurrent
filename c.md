@@ -968,11 +968,519 @@ void *thread_function(void *arg) {
 
 
 
+## Semaphore
+
+세마포어 함수는 대부분의 스레드 특정 함수처럼 sem_와 함께 pthread_로 시작하지 않습니다. 스레드에서 사용되는 네 가지 기본 세마포어 함수가 있습니다. 그들은 모두 아주 간단합니다.
+세마포어는 다음과 같이 선언 된 sem_init 함수로 생성됩니다.
+
+```c
+#include <semaphore.h>
+int sem_init(sem_t *sem, int pshared, unsigned int value);
+int sem_wait(sem_t * sem); int sem_post(sem_t * sem);
+int sem_destroy(sem_t * sem);
+```
+
+
+
+```c
+#include <stdio.h> 
+#include <unistd.h> 
+#include <stdlib.h> 
+#include <string.h> 
+#include <pthread.h> 
+#include <semaphore.h>
+
+void *thread_function(void *arg); 
+sem_t bin_sem;
+#define WORK_SIZE 1024 
+char work_area[WORK_SIZE];
+int main() {
+    int res;
+	pthread_t a_thread; 
+    void *thread_result;
+	res = sem_init(&bin_sem, 0, 0); 
+    if (res != 0) {
+		perror("Semaphore initialization failed");
+		exit(EXIT_FAILURE); 
+    }
+	res = pthread_create(&a_thread, NULL, thread_function, NULL); 
+    if (res != 0) {
+		perror("Thread creation failed");
+		exit(EXIT_FAILURE); 
+    }
+	printf("Input some text. Enter 'end' to finish\n"); 
+    
+    while(strncmp("end", work_area, 3) != 0) {
+		fgets(work_area, WORK_SIZE, stdin);
+		sem_post(&bin_sem); 
+    	}
+	printf("\nWaiting for thread to finish...\n"); 
+    res = pthread_join(a_thread, &thread_result); 
+    if (res != 0) {
+		perror("Thread join failed");
+		exit(EXIT_FAILURE); 
+    }
+	printf("Thread joined\n"); 
+    sem_destroy(&bin_sem); 
+    exit(EXIT_SUCCESS);
+}
+void *thread_function(void *arg) { 
+    sleep(1);
+    sem_wait(&bin_sem); 
+    while(strncmp("end", work_area, 3) != 0) 
+    {
+		printf("You input %d characters\n", strlen(work_area) -1);
+		sem_wait(&bin_sem); 
+    }
+	pthread_exit(NULL); 
+}
+```
+
+우리가 세마포어를 초기화 할 때 그 값을 0으로 설정한다. 
+
+따라서 threads 함수가 시작될 때 sem_wait를 호출하면 세마포어가 블록되지 않고 0이 될 때까지 기다린다.
+
+주 스레드에서는 텍스트가 생길 때까지 기다린 다음 sem_post로 세마포어를 증가시킵니다. 
+
+그러면 즉시 다른 스레드가 해당 sem_wait에서 돌아가 실행을 시작할 수 있습니다. 
+
+문자 수를 계산하면 다시 sem_wait를 호출하고 주 스레드가 sem_post를 다시 호출하여 세마포어를 증가시킬 때까지 차단됩니다.
+
+일반적인 문제의 원인은 미묘한 타이밍 오류를 간과하는 것입니다. 
+
+프로그램을 thread4a.c로 약간 수정하여 키보드의 텍스트 입력이 언젠가 자동으로 사용 가능한 텍스트로 대체되는 것처럼 가장하십시오. 
+
+우리는 메인의 읽기 루프를 다음과 같이 수정합니다
+
+
+
+```c
+printf("Input some text. Enter 'end' to finish\n"); 
+while(strncmp("end", work_area, 3) != 0) {
+	if (strncmp(work_area, "FAST", 4) == 0) { 
+        sem_post(&bin_sem); 
+        strcpy(work_area, "Wheeee...");
+	} else {
+		fgets(work_area, WORK_SIZE, stdin);
+	}
+sem_post(&bin_sem); 
+}
+/*
+이제 우리가 'FAST'를 입력하면 프로그램은 sem_post를 호출하여 문자 카운터가 실행되도록하지만 work_area를 다른 것으로 즉시 업데이트합니다.*/
+```
 
 
 
 
 
+## Shared Memory
+
+* shmctl ( "Shared Memory ConTroL") 호출은 공유 메모리 세그먼트에 대한 정보를 반환하고 수정할 수 있습니다
+
+* 첫 번째 매개 변수는 공유 메모리 세그먼트 식별자입니다
+
+* 공유 메모리 세그먼트에 대한 정보를 얻으려면 IPC_STAT를 두 번째 인수로 전달하고 struct shmid_ds에 대한 포인터를 전달하십시오.
+
+* 세그먼트를 제거하려면 IPC_RMID를 두 번째 인수로 전달하고 세 번째 인수로 NULL을 전달하십시오. 세그먼트가 연결된 마지막 프로세스가 마지막으로 분리하면 세그먼트가 제거됩니다.
+
+* 공유 메모리 세그먼트의 총 수에 대한 시스템 전체 제한을 위반하지 않도록 각 공유 메모리 세그먼트는 shmctl을 사용하여 명시 적으로 할당을 해제해야합니다. 
+
+* exit 및 exec를 호출하면 메모리 세그먼트가 분리되지만 할당을 해제하지는 않습니다.
+
+  ```c
+  #include <stdio.h> 
+  #include <sys/shm.h> 
+  #include <sys/stat.h>
+  int main () {
+  	int segment_id;
+  	char* shared_memory;
+  	struct shmid_ds shmbuffer;
+  	int segment_size;
+  	const int shared_segment_size = 0x6400;
+      
+  	/* Allocate a shared memory segment. */
+  	segment_id = shmget (IPC_PRIVATE, shared_segment_size,IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR);
+      
+      /* Attach the shared memory segment. */
+  	shared_memory = (char*) shmat (segment_id, 0, 0);
+  	printf (“shared memory attached at address %p\n”, shared_memory); 
+      
+      /* Determine the segment’s size. */
+  	shmctl (segment_id, IPC_STAT, &shmbuffer);
+  	segment_size = shmbuffer.shm_segsz;
+  	printf (“segment size: %d\n”, segment_size);
+      
+  	/* Write a string to the shared memory segment. */
+  	sprintf (shared_memory, “Hello, world.”);
+      
+  	/* Detach the shared memory segment. */
+  	shmdt (shared_memory);
+      
+  	/* Reattach the shared memory segment, at a different address. */ 	shared_memory = (char*) shmat (segment_id, (void*) 0x5000000, 0); 
+      printf (“shared memory reattached at address %p\n”, shared_memory); 
+      /*Print out the string from shared memory. */
+  	printf (“%s\n”, shared_memory);
+      
+  	/* Detach the shared memory segment. */ 
+      shmdt (shared_memory);
+      
+  	/* Deallocate the shared memory segment. */ 
+      shmctl (segment_id, IPC_RMID, 0);
+  return 0;
+  }
+  ```
+
+
+
+
+
+```c
+#include <sys/types.h> 
+#include <sys/ipc.h> 
+#include <sys/sem.h>
+/* Wait on a binary semaphore. Block until the semaphore value is positive, then decrement it by 1. */
+int binary_semaphore_wait (int semid){
+	struct sembuf operations[1];
+    
+	/* Use the first (and only) semaphore. */ 
+    operations[0].sem_num = 0;
+    
+	/* Decrement by 1. */ 
+    operations[0].sem_op = -1;
+    
+	/* Permit undo’ing. */ 
+    operations[0].sem_flg = SEM_UNDO;
+	return semop (semid, operations, 1); 
+}
+/* Post to a binary semaphore: increment its value by 1. This returns immediately. */
+int binary_semaphore_post (int semid) {
+	struct sembuf operations[1];
+	/* Use the first (and only) semaphore. */ 
+    operations[0].sem_num = 0;
+	
+    /* Increment by 1. */ 
+    operations[0].sem_op = 1;
+	/* Permit undo’ing. */ 
+    operations[0].sem_flg = SEM_UNDO;
+	return semop (semid, operations, 1);
+}
+
+              
+```
+
+* sem_num : 세마푸어 세트의 세마푸어 번호
+* sem_op :  세마포어 연산을 지정하는 정수입니다.
+  sem_op가 양수인 경우 해당 숫자는 즉시 세마포 값에 추가됩니다.
+  sem_op이 음수이면, 해당 숫자의 절대 값이 세마포어 값에서 뺍니다. 이렇게하면 세마포어 값이 음수가됩니다. 세마포어 값이 sem_op의 절대 값만큼 커질 때까지 호출이 차단됩니다 (다른 프로세스에서이 값을 증가시키기 때문입니다).
+  sem_op이 0이면 세마포어 값이 0이 될 때까지 연산이 차단됩니다.
+* sem_flg : 플래그 값입니다. IPC_NOWAIT를 지정하면 작업이 차단되지 않습니다. 작업이 차단 된 경우 semop을 호출하면 대신 실패합니다. SEM_UNDO를 지정하면 프로세스가 종료 될 때마다 Linux가 자동으로 세마포어의 작업을 취소합니다.
+
+
+
+
+
+### Mapped Memory
+
+MAP_FIXED—이 플래그를 지정하면, Linux는 힌트로 취급하지 않고 파일을 맵핑하기 위해 요청한 주소를 사용합니다.이 주소는 페이지 정렬되어야합니다.
+
+n MAP_PRIVATE— 메모리 범위에 대한 쓰기는 첨부 된 파일에 다시 기록하지 말고 파일의 개인 사본에 기록해야합니다. 다른 프로세스는 이러한 기록을 보지 않습니다. 이 모드는 MAP_SHARED와 함께 사용할 수 없습니다.
+
+
+
+```c
+#include <stdlib.h> 
+#include <stdio.h> 
+#include <fcntl.h> 
+#include <sys/mman.h> 
+#include <sys/stat.h> 
+#include <time.h> 
+#include <unistd.h> 
+#define FILE_LENGTH 0x100
+/* Return a uniformly random number in the range [low,high]. */
+int random_range (unsigned const low, unsigned const high) {
+	unsigned const range = high - low + 1;
+	return low + (int) (((double) range) * rand () / (RAND_MAX + 1.0)); 
+}
+int main (int argc, char* const argv[]) {
+	int fd;
+	void* file_memory;
+/* Seed the random number generator. */
+    srand (time (NULL));
+/* Prepare a file large enough to hold an unsigned integer. */ 
+    fd = open (argv[1], O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+	lseek (fd, FILE_LENGTH+1, SEEK_SET);
+    write (fd, “”, 1);
+	lseek (fd, 0, SEEK_SET);
+	/* Create the memory mapping. */
+	file_memory = mmap (0, FILE_LENGTH, PROT_WRITE, MAP_SHARED, fd, 0); 
+    close (fd);
+	/* Write a random integer to memory-mapped area. */ 
+    sprintf((char*) file_memory, “%d\n”, random_range (-100, 100));
+	/* Release the memory (unnecessary because the program exits). */ 
+    munmap (file_memory, FILE_LENGTH);
+	
+    return 0;
+}
+
+```
+
+
+
+
+
+```c
+#include <stdlib.h> 
+#include <stdio.h> 
+#include <fcntl.h> 
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h> 
+#define FILE_LENGTH 0x100
+int main (int argc, char* const argv[]) {
+	int fd;
+	void* file_memory; 
+    int integer;
+	/* Open the file. */
+	fd = open (argv[1], O_RDWR, S_IRUSR | S_IWUSR);
+	/* Create the memory mapping. */
+	file_memory = mmap (0, FILE_LENGTH, PROT_READ | PROT_WRITE,MAP_SHARED, fd, 0);
+	close (fd);
+    /* Read the integer, print it out, and double it. */
+	scanf (file_memory, “%d”, &integer);
+	printf (“value: %d\n”, integer);
+	sprintf ((char*) file_memory, “%d\n”, 2 * integer);
+	/* Release the memory (unnecessary because the program exits). */ 
+    munmap (file_memory, FILE_LENGTH);
+	return 0;
+}
+
+msync (mem_addr, mem_length, MS_SYNC | MS_INVALIDATE);
+
+```
+
+검증이 되면 씀
+
+```c
+int pipe_fds[2];
+int read_fd;
+int write_fd;
+pipe (pipe_fds); 
+read_fd = pipe_fds[0]; 
+write_fd = pipe_fds[1];
+
+int main () {
+    int fds[2]; 
+    pid_t pid;
+    /* Create a pipe. File descriptors for the two ends of the pipe are placed in fds. */
+    pipe (fds);
+    /* Fork a child process. */ 
+    pid = fork ();
+    if (pid == (pid_t) 0) {
+	    FILE* stream;
+	    /* This is the child process. Close our copy of the write end of
+	    the file descriptor. */
+	    close (fds[1]);
+	    /* Convert the read file descriptor to a FILE object, and read
+	    from it. */
+	    stream = fdopen (fds[0], “r”); 
+        reader (stream);
+	    close (fds[0]); 
+    }
+    else {
+	    /* This is the parent process. */
+	    FILE* stream;
+	    /* Close our copy of the read end of the file descriptor. */ 
+        close (fds[0]);
+	    /* Convert the write file descriptor to a FILE object, and write
+    to it. */
+	    stream = fdopen (fds[1], “w”); 
+        writer (“Hello, world.”, 5, stream); 
+        close (fds[1]);
+    }
+    return 0;
+}
+
+```
+
+
+
+
+
+socket—Creates a socket
+closes—Destroys a socket
+connect—Creates a connection between two sockets
+
+bind—Labels a server socket with an address
+listen—Configures a socket to accept conditions
+accept—Accepts a connection and creates a new socket for the connection
+
+
+
+```c
+#include <stdio.h> 
+#include <stdlib.h> 
+#include <string.h> 
+#include <sys/socket.h> 
+#include <sys/un.h> 
+#include <unistd.h>
+/* Read text from the socket and print it out. Continue until the socket closes. Return nonzero if the client sent a “quit” message, zero otherwise. */
+int server (int client_socket) {
+	while (1) { 
+        int length; char* text;
+	/* First, read the length of the text message from the socket. If read returns zero, the client closed the connection. */
+        if (read (client_socket, &length, sizeof (length)) == 0) 
+            return 0;
+		/* Allocate a buffer to hold the text. */ 
+        text = (char*) malloc (length);
+		/* Read the text itself, and print it. */
+		read (client_socket, text, length); 
+        printf (“%s\n”, text);
+        
+	/* Free the buffer. */
+		free (text);
+	/* If the client sent the message “quit,” we’re all done. */ 
+        if (!strcmp (text, “quit”))
+			return 1; 
+    }
+}
+int main (int argc, char* const argv[]) {
+	const char* const socket_name = argv[1];
+    int  socket_fd;
+	struct sockaddr_un name;
+    
+	int client_sent_quit_message;
+    
+	/* Create the socket. */
+	socket_fd = socket (PF_LOCAL, SOCK_STREAM, 0); 
+    /* Indicate that this is a server. */ 
+    name.sun_family = AF_LOCAL;
+	strcpy (name.sun_path, socket_name);
+	bind (socket_fd, &name, SUN_LEN (&name));
+	/* Listen for connections. */
+    
+	listen (socket_fd, 5);
+	/* Repeatedly accept connections, spinning off one server() to deal
+	with each client. Continue until a client sends a “quit” message. */
+    
+	do {
+        
+		struct sockaddr_un client_name; 
+        socklen_t client_name_len;
+        
+		int client_socket_fd;
+		/* Accept a connection. */
+		client_socket_fd = accept (socket_fd, &client_name, &client_name_len);
+        
+        /* Handle the connection. */
+		client_sent_quit_message = server (client_socket_fd);
+		/* Close our end of the connection. */
+		close (client_socket_fd);
+	}while (!client_sent_quit_message);
+	/* Remove the socket file. */ 
+    
+    close (socket_fd);
+	unlink (socket_name);
+	return 0;
+}
+```
+
+
+
+
+
+```c
+#include <stdio.h> 
+#include <string.h> 
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
+
+/* Write TEXT to the socket given by file descriptor SOCKET_FD. */
+void write_text (int socket_fd, const char* text) 
+{
+	/* Write the number of bytes in the string, including NUL-termination. */
+	int length = strlen (text) + 1;
+	write (socket_fd, &length, sizeof (length)); /* Write the string. */
+	write (socket_fd, text, length);
+}
+int main (int argc, char* const argv[]) {
+	const char* const socket_name = argv[1]; 
+    const char* const message = argv[2];
+	int socket_fd;
+	struct sockaddr_un name;
+	/* Create the socket. */
+	socket_fd = socket (PF_LOCAL, SOCK_STREAM, 0);
+	/* Store the server’s name in the socket address. */ 
+    name.sun_family = AF_LOCAL;
+	strcpy (name.sun_path, socket_name);
+	/* Connect the socket. */
+	connect (socket_fd, &name, SUN_LEN (&name));
+	/* Write the text on the command line to the socket. */ 
+    write_text (socket_fd, message);
+	close (socket_fd);
+	return 0;
+}
+```
+
+
+
+
+
+
+
+
+
+```c
+
+#include <stdlib.h> 
+#include <stdio.h> 
+#include <netinet/in.h> 
+#include <netdb.h> 
+#include <sys/socket.h>
+#include <unistd.h> 
+#include <string.h>
+/* Print the contents of the home page for the server’s socket. Return an indication of success. */
+void get_home_page (int socket_fd) {
+	char buffer[10000];
+	ssize_t number_characters_read;
+	/* Send the HTTP GET command for the home page. */ 
+    sprintf (buffer, “GET /\n”);
+	write (socket_fd, buffer, strlen (buffer));
+	/* Read from the socket. The call to read may not return all the data at one time, so keep trying until we run out. */ 
+    while (1) {
+        number_characters_read = read (socket_fd, buffer, 10000); 
+        if (number_characters_read == 0)
+            return;
+/* Write the data to standard output. */
+		fwrite (buffer, sizeof (char), number_characters_read, stdout);
+    } 
+}
+int main (int argc, char* const argv[]) {
+	int socket_fd;
+	struct sockaddr_in name; 
+    struct hostent* hostinfo;
+	/* Create the socket. */
+	socket_fd = socket (PF_INET, SOCK_STREAM, 0);
+	/* Store the server’s name in the socket address. */ 
+    name.sin_family = AF_INET;
+	/* Convert from strings to numbers. */
+	hostinfo = gethostbyname (argv[1]);
+	if (hostinfo == NULL)
+		return 1; 
+    else
+		name.sin_addr = *((struct in_addr *) hostinfo->h_addr); /* Web servers use port 80. */
+	name.sin_port = htons (80);
+    /* Connect to the Web server */
+    if (connect (socket_fd, &name, sizeof (struct sockaddr_in)) == -1) 
+    {
+		perror (“connect”);
+		return 1; 
+    }
+	/* Retrieve the server’s home page. */ 
+    get_home_page (socket_fd);
+	return 0;
+}
+```
 
 
 
