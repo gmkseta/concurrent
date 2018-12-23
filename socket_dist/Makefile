@@ -16,7 +16,7 @@ MODS =  any_apply \
         test1 test_name_server mod_srpc
 
 
-ERL = erl -boot start_clean 
+ERL = erl -boot start_clean
 
 all:	compile
 	@echo "To run the chat test program"
@@ -24,7 +24,7 @@ all:	compile
 	@echo "  2) in xterm one type -- make chat_server"
 	@echo "  3) in xterm two type -- make chat_client"
 	@echo "  Note: remember to type make in the directory above this"
-	@echo "        before running make in this directory"	
+	@echo "        before running make in this directory"
 	@echo "To run the lib_chan test program"
 	@echo "  1) start two xterms"
 	@echo "  2) in xterm one type -- make server"
@@ -32,11 +32,15 @@ all:	compile
 	@echo "  Ignore any output in the server window"
 	@echo "  The results of the test are printed in the client window"
 
+#mkdir -p 로 directory를 생성 한다.
+#conf file을 ${HOME}/.erlang_config/lib_chan.conf로 저장한다.
 compile: ${MODS:%=%.beam}
 	mkdir -p ${HOME}/.erlang_config/
 	cp conf ${HOME}/.erlang_config/lib_chan.conf
 	@echo "make clean - clean up"
 
+# -pa option directory 설정,
+# -s option chat_client test
 chat_client: compile
 	erl -pa ../ -s chat_client test
 
@@ -52,5 +56,5 @@ server: compile
 client: compile
 	erl -pa ../ -boot start_clean -pa '.' -s lib_chan_test start_client
 
-clean:	
+clean:
 	rm -rf *.beam erl_crash.dump

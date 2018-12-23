@@ -1,20 +1,23 @@
 %% ---
 %%  Excerpted from "Programming Erlang",
 %%  published by The Pragmatic Bookshelf.
-%%  Copyrights apply to this code. It may not be used to create training material, 
+%%  Copyrights apply to this code. It may not be used to create training material,
 %%  courses, books, articles, and the like. Contact us if you are in doubt.
-%%  We make no guarantees that this code is fit for any purpose. 
+%%  We make no guarantees that this code is fit for any purpose.
 %%  Visit http://www.pragmaticprogrammer.com/titles/jaerlang for more book information.
 %%---
 -module(io_widget).
 
 -export([get_state/1,
-	 start/1, test/0, 
-	 set_handler/2, 
+	 start/1, test/0,
+	 set_handler/2,
 	 set_prompt/2,
 	 set_state/2,
 	 set_title/2, insert_str/2, update_state/3]).
 
+%gs : graphics system
+% spawn_link : process 의 identifier Return
+% widget 함수 id spawn_link 가 가지고있음
 start(Pid) ->
     gs:start(),
     spawn_link(fun() -> widget(Pid) end).
@@ -25,31 +28,43 @@ set_handler(Pid, Fun)   -> Pid ! {handler, Fun}.
 set_prompt(Pid, Str)    -> Pid ! {prompt, Str}.
 set_state(Pid, State)   -> Pid ! {state, State}.
 insert_str(Pid, Str)    -> Pid ! {insert, Str}.
-update_state(Pid, N, X) -> Pid ! {updateState, N, X}. 
+update_state(Pid, N, X) -> Pid ! {updateState, N, X}.
 
-rpc(Pid, Q) ->    
+rpc(Pid, Q) ->
     Pid ! {self(), Q},
     receive
 	{Pid, R} ->
 	    R
     end.
 
+% Windown 생성  title,Size 설정
 widget(Pid) ->
+	% Win size 변수
     Size = [{width,500},{height,200}],
-    Win = gs:window(gs:start(),
+	% Win option 설정
+		Win = gs:window(gs:start(),
 		    [{map,true},{configure,true},{title,"window"}|Size]),
-    gs:frame(packer, Win,[{packer_x, [{stretch,1,500}]},
+	% Win Frame 에 대한 packer 변수 설정.
+		gs:frame(packer, Win,[{packer_x, [{stretch,1,500}]},
 			  {packer_y, [{stretch,10,100,120},
 				      {stretch,1,15,15}]}]),
+		% 채팅을 보여줄 frame 설정 .  가로 500, 세로 10/11크기  100~120
+		% 오른쪽 세로 스크롤 활성화
     gs:create(editor,editor,packer, [{pack_x,1},{pack_y,1},{vscroll,right}]),
-    gs:create(entry, entry, packer, [{pack_x,1},{pack_y,2},{keypress,true}]),
-    gs:config(packer, Size),
+		% keypress가 가능한 editing 줄 생성
+		gs:create(entry, entry, packer, [{pack_x,1},{pack_y,2},{keypress,true}]),
+    %config - 옵션 , 창 Size 설정
+		gs:config(packer, Size),
     Prompt = " > ",
     State = nil,
+		%editing 창에 insert option insert 이며 처음 Prompt 가 나옴.
     gs:config(entry, {insert,{0,Prompt}}),
-    loop(Win, Pid, Prompt, State, fun parse/1). 
+		%loop 함수 실행 .  Win,Pid,Promt,State인자, parse함수 넘겨줌
+    loop(Win, Pid, Prompt, State, fun parse/1).
 
-loop(Win, Pid, Prompt, State, Parse) ->   
+% Chat_client에서 생성할때. receive하여 setting 하는 함수
+% receive 후 자기 자신을 불러 대기상태로 한다.
+loop(Win, Pid, Prompt, State, Parse) ->
     receive
 	{From, get_state} ->
 	    From ! {self(), State},
@@ -128,8 +143,3 @@ loop(W) ->
 
 parse(Str) ->
     {str, Str}.
-
-    
-    
-    
-		  

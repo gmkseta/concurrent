@@ -1,9 +1,9 @@
 %% ---
 %%  Excerpted from "Programming Erlang",
 %%  published by The Pragmatic Bookshelf.
-%%  Copyrights apply to this code. It may not be used to create training material, 
+%%  Copyrights apply to this code. It may not be used to create training material,
 %%  courses, books, articles, and the like. Contact us if you are in doubt.
-%%  We make no guarantees that this code is fit for any purpose. 
+%%  We make no guarantees that this code is fit for any purpose.
 %%  Visit http://www.pragmaticprogrammer.com/titles/jaerlang for more book information.
 %%---
 
@@ -13,13 +13,17 @@
 
 -compile(export_all).
 
-
+% make chat_server 실행시 가장 먼저 실행됨.
+%start_server() 와 lib_chan:start_server("chat.conf") 실행하게 된다 .
 start() ->
     start_server(),
     lib_chan:start_server("chat.conf").
 
 start_server() ->
-    register(chat_server, 
+  % register - chat_server 이 spawn 된 process id
+  % process_flag - process가 exit signal을 받으면 종료되는 옵션
+  % server_loop 실행  후 io:format 으로 출력
+    register(chat_server,
 	     spawn(fun() ->
 			   process_flag(trap_exit, true),
 			   Val= (catch server_loop([])),
@@ -27,7 +31,7 @@ start_server() ->
 		   end)).
 
 
-
+% 받아온 L 의 pattern 매칭.
 server_loop(L) ->
     receive
 	{mm, Channel, {login, Group, Nick}} ->
@@ -37,12 +41,12 @@ server_loop(L) ->
 		    server_loop(L);
 		error ->
 		    Pid = spawn_link(fun() ->
-					     chat_group:start(Channel, Nick) 
+					     chat_group:start(Channel, Nick)
 				     end),
 		    server_loop([{Group,Pid}|L])
 	    end;
 	{mm_closed, _} ->
-	    server_loop(L); 
+	    server_loop(L);
 	{'EXIT', Pid, allGone} ->
 	    L1 = remove_group(Pid, L),
 	    server_loop(L1);
@@ -54,6 +58,7 @@ server_loop(L) ->
 
 
 
+
 lookup(G, [{G,Pid}|_]) -> {ok, Pid};
 lookup(G, [_|T])       -> lookup(G, T);
 lookup(_,[])           -> error.
@@ -61,4 +66,3 @@ lookup(_,[])           -> error.
 remove_group(Pid, [{G,Pid}|T]) -> io:format("~p removed~n",[G]), T;
 remove_group(Pid, [H|T])       -> [H|remove_group(Pid, T)];
 remove_group(_, [])            -> [].
-

@@ -1,9 +1,9 @@
 %% ---
 %%  Excerpted from "Programming Erlang",
 %%  published by The Pragmatic Bookshelf.
-%%  Copyrights apply to this code. It may not be used to create training material, 
+%%  Copyrights apply to this code. It may not be used to create training material,
 %%  courses, books, articles, and the like. Contact us if you are in doubt.
-%%  We make no guarantees that this code is fit for any purpose. 
+%%  We make no guarantees that this code is fit for any purpose.
 %%  Visit http://www.pragmaticprogrammer.com/titles/jaerlang for more book information.
 %%---
 -module(lib_chan).
@@ -14,6 +14,9 @@
 
 %%----------------------------------------------------------------------
 %% Server code
+% getenv("HOME")의 환경변수 값을 확인
+% start_server($HOME + "/.erlang_config/lib_chan.conf" )
+%으로 실행한다. connf file 로  start_server 실행
 
 start_server() ->
     case os:getenv("HOME") of
@@ -23,6 +26,11 @@ start_server() ->
 	    start_server(Home ++ "/.erlang_config/lib_chan.conf")
     end.
 
+	% chat.conf 출력
+	%     chat.conf file 을 하나의[]로 만드며 {} 단위로 데이터를 나누고
+	%      case check_terms(ConfigData)  data 패턴 매칭한다.
+	%    conf file 이 error인지 확인지 확인 후
+	%  		에러가 없으면 . start_server1 에 {}단위로 입력
 start_server(ConfigFile) ->
     io:format("lib_chan starting:~p~n",[ConfigFile]),
     case file:consult(ConfigFile) of
@@ -39,26 +47,37 @@ start_server(ConfigFile) ->
     end.
 
 %% check_terms() -> [Error]
+% map(fun check_term/1, ConfigData) - check_term/1 을 ConfigData 매핑
+%  data가 해당 형식에 맞는지 확인
 
 check_terms(ConfigData) ->
     L = map(fun check_term/1, ConfigData),
     [X || {error, X} <- L].
-		    
+
 check_term({port, P}) when is_integer(P)     -> ok;
 check_term({service,_,password,_,mfa,_,_,_}) -> ok;
 check_term(X) -> {error, {badTerm, X}}.
-
+% start_server1 - lib_chan 으로 process name사용
+% 추후에 lib_chan ! message 형식으로 사용 가능.
+%  Start_server1 의 data  ->
+%		 {port, P} ,  {service,_,password,_,mfa,_,_,_} 형태로 입력된 data 삽입
+% lib_chan 이름으로  spawn된 start_server2  입력받은 데이터 삽입.
 start_server1(ConfigData) ->
     register(lib_chan, spawn(fun() -> start_server2(ConfigData) end)).
-
+%start_server1 으로부터 온 data 패턴 매칭
+% ConfigDta 가 {Port,P} 인 경우 P 을 Port에 저장.
+% Port 에 관한 data인지 확인후 start_port_server로 포트번호
 start_server2(ConfigData) ->
     [Port] = [ P || {port,P} <- ConfigData],
     start_port_server(Port, ConfigData).
 
+%lib_chan_cs:start_raw_server 에 prot 번호를 삽입. 함수 생성,
+%start_port_instance 으로 생성,
+%start_port_instance - listen 이 이루어지게될 process
 start_port_server(Port, ConfigData) ->
-    lib_chan_cs:start_raw_server(Port, 
-				fun(Socket) -> 
-					start_port_instance(Socket, 
+    lib_chan_cs:start_raw_server(Port,
+				fun(Socket) ->
+					start_port_instance(Socket,
 							    ConfigData) end,
 				100,
 				4).
@@ -67,10 +86,14 @@ start_port_instance(Socket, ConfigData) ->
     %% This is where the low-level connection is handled
     %% We must become a middle man
     %% But first we spawn a connection handler
+		% start_erl_port_server(S, ConfigData) 으로
+		%listen. accept한 Socket 설정 후 , 할당.
+		%lib_chan_mm:loop(Socket, Controller) -
     S = self(),
     Controller = spawn_link(fun() -> start_erl_port_server(S, ConfigData) end),
     lib_chan_mm:loop(Socket, Controller).
 
+% start_erl_port_server(S, ConfigData)  S는 Pid configData는{ port,protnum} 임.
 start_erl_port_server(MM, ConfigData) ->
     receive
 	{chan, MM, {startService, Mod, ArgC}} ->
@@ -138,6 +161,8 @@ get_service_definition(_, []) ->
 %% Client connection code
 %% connect(...) -> {ok, MM} | Error
 
+%
+% 함수 생성후 Pid ! Message 대기 .
 connect(Host, Port, Service, Secret, ArgC) ->
     S = self(),
     MM = spawn(fun() -> connect(S, Host, Port) end),
@@ -159,6 +184,7 @@ connect(Parent, Host, Port) ->
 	Error ->
 	    Parent ! {self(),  Error}
     end.
+
 
 authenticate(MM, Service, Secret, ArgC) ->
     send(MM, {startService, Service, ArgC}),

@@ -1,9 +1,9 @@
 %% ---
 %%  Excerpted from "Programming Erlang",
 %%  published by The Pragmatic Bookshelf.
-%%  Copyrights apply to this code. It may not be used to create training material, 
+%%  Copyrights apply to this code. It may not be used to create training material,
 %%  courses, books, articles, and the like. Contact us if you are in doubt.
-%%  We make no guarantees that this code is fit for any purpose. 
+%%  We make no guarantees that this code is fit for any purpose.
 %%  Visit http://www.pragmaticprogrammer.com/titles/jaerlang for more book information.
 %%---
 %% Protocol
@@ -24,17 +24,22 @@ send(Pid, Term)       -> Pid ! {send, Term}.
 close(Pid)            -> Pid ! close.
 controller(Pid, Pid1) -> Pid ! {setController, Pid1}.
 set_trace(Pid, X)     -> Pid ! {trace, X}.
-    
+
 trace_with_tag(Pid, Tag) ->
-    set_trace(Pid, {true, 
-		    fun(Msg) -> 
-			    io:format("MM:~p ~p~n",[Tag, Msg]) 
+    set_trace(Pid, {true,
+		    fun(Msg) ->
+			    io:format("MM:~p ~p~n",[Tag, Msg])
 		    end}).
-    
+      % Socket 은 listen, accept 된 소켓.
+    %  Pid 는 Controller 이며 lib_chan:start_erl_port_server임.
+    % 종료 옵션 허용 후 loop1 excute
+    % 정리 - Socket을 대기상태로 한다.
 loop(Socket, Pid) ->
     %% trace_with_tag(self(), trace),
     process_flag(trap_exit, true),
+    % loop1 메세지 대기 상태. // client에서 massage를 보내는듯 하다.
     loop1(Socket, Pid, false).
+  %Socket 의 상태를 확인한다.
 
 loop1(Socket, Pid, Trace) ->
     receive
@@ -43,7 +48,7 @@ loop1(Socket, Pid, Trace) ->
 	    trace_it(Trace,{socketReceived, Term}),
 	    Pid ! {chan, self(), Term},
 	    loop1(Socket, Pid, Trace);
-	{tcp_closed, Socket} ->  
+	{tcp_closed, Socket} ->
 	    trace_it(Trace, socketClosed),
 	    Pid ! {chan_closed, self()};
 	{'EXIT', Pid, Why} ->
@@ -67,4 +72,4 @@ loop1(Socket, Pid, Trace) ->
 	    loop1(Socket, Pid, Trace)
     end.
 trace_it(false, _)     -> void;
-trace_it({true, F}, M) -> F(M). 
+trace_it({true, F}, M) -> F(M).
